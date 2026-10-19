@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Kalkulator kapasitas mesin motor satu silinder berdasarkan bore dan stroke.">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <title>Kalkulator CC Motor</title>
+  <style>
+    :root { color-scheme: light; --ink:#111827; --muted:#6b7280; --line:#d1d5db; --paper:#fff; --bg:#eef2f7; --accent:#16a34a; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; min-height:100dvh; padding:24px 16px; display:grid; place-items:center; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    main { width:100%; max-width:440px; background:var(--paper); padding:26px; border-radius:22px; box-shadow:0 16px 45px #11182714; }
+    .mark { width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:#dcfce7;color:#166534;margin:0 auto 14px;font-size:28px;font-weight:900; }
+    h1 { margin:0;text-align:center;font-size:25px;letter-spacing:-.5px; }
+    .sub { text-align:center;color:var(--muted);font-size:14px;line-height:1.5;margin:8px 0 25px; }
+    label { display:block;font-weight:700;font-size:14px;margin:0 0 8px; }
+    .field { margin-bottom:17px; }
+    .input-wrap { position:relative; }
+    input { width:100%;font:inherit;font-size:17px;padding:14px 54px 14px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);outline:none; }
+    input:focus { border-color:var(--accent);box-shadow:0 0 0 3px #16a34a20; }
+    .unit { position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px; }
+    .hint { color:var(--muted);font-size:12px;margin-top:6px; }
+    .actions { display:flex;gap:10px;margin-top:22px; }
+    button { min-height:48px;border:0;border-radius:12px;padding:12px 16px;font:inherit;font-weight:750;cursor:pointer; }
+    .primary { flex:1;background:var(--ink);color:white; }
+    .secondary { background:#e5e7eb;color:var(--ink); }
+    button:focus-visible { outline:3px solid #86efac;outline-offset:2px; }
+    .error { color:#b91c1c;font-size:13px;margin-top:12px;display:none; }
+    .result { display:none;margin-top:22px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;padding:20px;text-align:center; }
+    .result-label { color:#166534;font-size:13px;font-weight:700; }
+    .number { font-size:clamp(34px,10vw,44px);font-weight:850;letter-spacing:-1.2px;margin:4px 0;color:#14532d;overflow-wrap:anywhere; }
+    .unit-result { font-size:17px;font-weight:700; }
+    .formula { margin-top:13px;padding-top:13px;border-top:1px solid #bbf7d0;color:#365344;font-size:12px;line-height:1.65;overflow-wrap:anywhere; }
+    .foot { color:var(--muted);text-align:center;font-size:11px;line-height:1.5;margin:20px 0 0; }
+    @media(max-width:360px) { main {padding:20px;} .actions {flex-direction:column;} .secondary {width:100%;} }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">CC</div>
+    <h1>Kalkulator CC Motor</h1>
+    <p class="sub">Hitung kapasitas mesin satu silinder dari ukuran bore dan stroke.</p>
+    <form id="ccForm" novalidate>
+      <div class="field">
+        <label for="bore">Bore / diameter piston</label>
+        <div class="input-wrap">
+          <input id="bore" name="bore" type="text" inputmode="decimal" autocomplete="off" placeholder="Contoh: 60 atau 60,5" aria-describedby="boreHint" required>
+          <span class="unit">mm</span>
+        </div>
+        <div class="hint" id="boreHint">Diameter dalam milimeter.</div>
+      </div>
+      <div class="field">
+        <label for="stroke">Stroke / langkah piston</label>
+        <div class="input-wrap">
+          <input id="stroke" name="stroke" type="text" inputmode="decimal" autocomplete="off" placeholder="Contoh: 58,7" aria-describedby="strokeHint" required>
+          <span class="unit">mm</span>
+        </div>
+        <div class="hint" id="strokeHint">Langkah piston dalam milimeter.</div>
+      </div>
+      <div class="actions">
+        <button class="primary" type="submit">Hitung CC</button>
+        <button class="secondary" type="button" id="resetBtn">Reset</button>
+      </div>
+      <p class="error" id="error" role="alert"></p>
+    </form>
+    <section class="result" id="result" aria-live="polite">
+      <div class="result-label">KAPASITAS MESIN</div>
+      <div><span class="number" id="ccValue">0,00</span> <span class="unit-result">cc</span></div>
+      <div class="formula" id="formula"></div>
+    </section>
+    <p class="foot">Rumus volume silinder: π ÷ 4 × bore² × stroke ÷ 1000.<br>Hasil adalah kapasitas geometris teoritis.</p>
+  </main>
+  <script>
+    const form = document.getElementById('ccForm');
+    const boreEl = document.getElementById('bore');
+    const strokeEl = document.getElementById('stroke');
+    const errorEl = document.getElementById('error');
+    const resultEl = document.getElementById('result');
+    const ccValueEl = document.getElementById('ccValue');
+    const formulaEl = document.getElementById('formula');
+    const fmt = (n, digits=2) => n.toLocaleString('id-ID', {minimumFractionDigits:digits, maximumFractionDigits:digits});
+    function parseMillimeters(value) {
+      const normalized = value.trim().replace(',', '.');
+      if (!normalized || !/^\d+(\.\d+)?$/.test(normalized)) return NaN;
+      return Number(normalized);
+    }
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const bore = parseMillimeters(boreEl.value);
+      const stroke = parseMillimeters(strokeEl.value);
+      if (!Number.isFinite(bore) || bore <= 0 || !Number.isFinite(stroke) || stroke <= 0) {
+        errorEl.textContent = 'Masukkan bore dan stroke yang valid, lebih besar dari 0. Gunakan titik atau koma untuk desimal.';
+        errorEl.style.display = 'block';
+        resultEl.style.display = 'none';
+        return;
+      }
+      const cc = Math.PI / 4 * bore * bore * stroke / 1000;
+      errorEl.style.display = 'none';
+      ccValueEl.textContent = fmt(cc);
+      formulaEl.textContent = `π ÷ 4 × ${fmt(bore)}² × ${fmt(stroke)} ÷ 1000 = ${fmt(cc)} cc`;
+      resultEl.style.display = 'block';
+    });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      form.reset();
+      errorEl.style.display = 'none';
+      resultEl.style.display = 'none';
+      boreEl.focus();
+    });
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
